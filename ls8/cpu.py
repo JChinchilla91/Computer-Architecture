@@ -5,6 +5,7 @@ import sys
 HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
+MUL = 0b10100010
 
 class CPU:
     """Main CPU class."""
@@ -12,25 +13,34 @@ class CPU:
     def __init__(self):
         """Construct a new CPU."""
         self.ram = [0] * 256
-        self.reg = [0] * 8
+        self.reg = [0, 0, 0, 0, 0, 0, 0, 0xF4]
         self.pc = 0
+        self.halted = False
 
-    def load(self):
+    def load(self, filename):
         """Load a program into memory."""
 
         address = 0
 
         # For now, we've just hardcoded a program:
 
-        program = [
-            # From print8.ls8
-            0b10000010, # LDI R0,8
-            0b00000000,
-            0b00001000,
-            0b01000111, # PRN R0
-            0b00000000,
-            0b00000001, # HLT
-        ]
+        program = []
+
+        try:
+            with open(filename) as f:
+                for line in f:
+                    comment_split = line.split('#')
+                    maybe_binary_number = comment_split[0]
+
+                    try:
+                        x = int(maybe_binary_number, 2)
+                        program.append(x)
+
+                    except:
+                        continue
+
+        except FileNotFoundError:
+            print('file not found')
 
         for instruction in program:
             self.ram[address] = instruction
@@ -43,6 +53,8 @@ class CPU:
         if op == "ADD":
             self.reg[reg_a] += self.reg[reg_b]
         #elif op == "SUB": etc
+        elif op == 'MUL':
+            self.reg[reg_a] *= self.reg[reg_b]
         else:
             raise Exception("Unsupported ALU operation")
 
@@ -74,15 +86,14 @@ class CPU:
 
     def run(self):
         """Run the CPU."""
-        running = True
-
-        while running:
+        while not self.halted:
             ir = self.ram_read(self.pc)
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
 
             if ir == HLT:
-                running = False
+                self.halted = True
+                self.pc += 1
 
             elif ir == LDI:
                 self.reg[operand_a] = operand_b
@@ -91,5 +102,13 @@ class CPU:
             elif ir == PRN:
                 print(self.reg[operand_a])
                 self.pc += 1
+
+            elif ir == MUL:
+                self.alu('MUL', operand_a, operand_b)
+                self.pc += 2
+            
+            else:
+                print('Instruction not recognized')
+                pass
 
             self.pc += 1
