@@ -6,6 +6,8 @@ HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
 MUL = 0b10100010
+POP = 0b01000110
+PUSH = 0b01000101
 
 class CPU:
     """Main CPU class."""
@@ -15,7 +17,19 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0, 0, 0, 0, 0, 0, 0, 0xF4]
         self.pc = 0
+        self.sp = 7
         self.halted = False
+
+        self.branch_table = {}
+
+        self.branch_table[HLT] = self.handle_HLT
+        self.branch_table[LDI] = self.handle_LDI
+        self.branch_table[PRN] = self.handle_PRN
+        self.branch_table[MUL] = self.handle_MUL
+        self.branch_table[POP] = self.handle_POP
+        self.branch_table[PUSH] = self.handle_PUSH
+        
+
 
     def load(self, filename):
         """Load a program into memory."""
@@ -27,8 +41,8 @@ class CPU:
         program = []
 
         try:
-            with open(filename) as f:
-                for line in f:
+            with open(filename) as my_file:
+                for line in my_file:
                     comment_split = line.split('#')
                     maybe_binary_number = comment_split[0]
 
@@ -84,31 +98,49 @@ class CPU:
     def ram_write(self, MAR, MDR):
         self.ram[MAR] = MDR
 
+    def ram_read(self, MAR):
+        return self.ram[MAR]
+    
+    def ram_write(self, MDR, MAR):
+        self.ram[MAR] = MDR
+    
+    def handle_HLT(self, *args):
+        self.halted = True
+    
+    def handle_LDI(self, *args):
+        self.reg[args[0]] = args[1]
+        self.pc += 3
+    
+    def handle_PRN(self, *args):
+        print(self.reg[args[0]])
+        self.pc += 2
+    
+    def handle_MUL(self, *args):
+        self.alu('MUL', args[0], args[1])
+        self.pc += 3
+    
+    def handle_PUSH(self, *args):
+        self.reg[self.sp] -= 1
+        self.ram[self.reg[self.sp]] = self.reg[args[0]]
+        self.pc += 2
+    
+    def handle_POP(self, *args):
+        self.reg[args[0]] = self.ram[self.reg[self.sp]]
+        self.reg[self.sp] += 1
+        self.pc += 2
+
     def run(self):
         """Run the CPU."""
+        self.halted = False
+
         while not self.halted:
             ir = self.ram_read(self.pc)
             operand_a = self.ram_read(self.pc + 1)
             operand_b = self.ram_read(self.pc + 2)
 
-            if ir == HLT:
-                self.halted = True
-                self.pc += 1
-
-            elif ir == LDI:
-                self.reg[operand_a] = operand_b
-                self.pc += 2
-
-            elif ir == PRN:
-                print(self.reg[operand_a])
-                self.pc += 1
-
-            elif ir == MUL:
-                self.alu('MUL', operand_a, operand_b)
-                self.pc += 2
-            
+            if ir in self.branch_table:
+                self.branch_table[ir](operand_a, operand_b)
             else:
-                print('Instruction not recognized')
+                print('invalid instruction')
+                self.pc += 1
                 pass
-
-            self.pc += 1
