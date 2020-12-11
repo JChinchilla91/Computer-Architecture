@@ -5,9 +5,12 @@ import sys
 HLT = 0b00000001
 LDI = 0b10000010
 PRN = 0b01000111
+ADD = 0b10100000
 MUL = 0b10100010
 POP = 0b01000110
 PUSH = 0b01000101
+CALL = 0b01010000
+RET = 0b00010001
 
 class CPU:
     """Main CPU class."""
@@ -17,7 +20,7 @@ class CPU:
         self.ram = [0] * 256
         self.reg = [0, 0, 0, 0, 0, 0, 0, 0xF4]
         self.pc = 0
-        self.sp = 7
+        self.sp = self.reg[7]
         self.halted = False
 
         self.branch_table = {}
@@ -25,9 +28,12 @@ class CPU:
         self.branch_table[HLT] = self.handle_HLT
         self.branch_table[LDI] = self.handle_LDI
         self.branch_table[PRN] = self.handle_PRN
+        self.branch_table[ADD] = self.handle_ADD
         self.branch_table[MUL] = self.handle_MUL
         self.branch_table[POP] = self.handle_POP
         self.branch_table[PUSH] = self.handle_PUSH
+        self.branch_table[CALL] = self.handle_CALL
+        self.branch_table[RET] = self.handle_RET
         
 
 
@@ -94,18 +100,16 @@ class CPU:
 
     def ram_read(self, MAR):
         return self.ram[MAR]
-
-    def ram_write(self, MAR, MDR):
-        self.ram[MAR] = MDR
-
-    def ram_read(self, MAR):
-        return self.ram[MAR]
     
     def ram_write(self, MDR, MAR):
         self.ram[MAR] = MDR
     
     def handle_HLT(self, *args):
         self.halted = True
+
+    def handle_ADD(self, *args):
+        self.alu('ADD', args[0], args[1])
+        self.pc += 3
     
     def handle_LDI(self, *args):
         self.reg[args[0]] = args[1]
@@ -129,6 +133,15 @@ class CPU:
         self.reg[self.sp] += 1
         self.pc += 2
 
+    def handle_CALL(self, *args):
+        self.sp -= 1
+        self.ram_write(self.pc + 2, self.sp)
+        self.pc = self.reg[args[0]]
+
+    def handle_RET(self, *args):
+        self.pc = self.ram_read(self.sp)
+        self.sp += 1
+
     def run(self):
         """Run the CPU."""
         self.halted = False
@@ -141,6 +154,5 @@ class CPU:
             if ir in self.branch_table:
                 self.branch_table[ir](operand_a, operand_b)
             else:
-                print('invalid instruction')
+                print(f'invalid instruction, {ir}')
                 self.pc += 1
-                pass
